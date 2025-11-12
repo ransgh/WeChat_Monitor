@@ -3,7 +3,7 @@ import os
 import feedparser
 from datetime import datetime
 import time
-import random
+import json
 
 print("🚀 开始监控公众号...")
 
@@ -40,16 +40,20 @@ def get_articles_from_rss(rss_url, source_name):
     """从RSS源获取文章"""
     try:
         print(f"🔍 尝试从 {source_name} 获取内容...")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
         feed = feedparser.parse(rss_url)
         
         if feed.entries:
             articles = []
-            for entry in feed.entries[:2]:  # 取最近2篇
+            for entry in feed.entries[:3]:  # 取最近3篇
                 articles.append({
                     'title': entry.title,
                     'link': entry.link,
                     'source': source_name,
-                    'published': entry.get('published', '')
+                    'published': entry.get('published', ''),
+                    'summary': entry.get('summary', '')[:100] if entry.get('summary') else ''
                 })
             print(f"✅ 从 {source_name} 找到 {len(articles)} 篇文章")
             return articles
@@ -62,13 +66,13 @@ def get_articles_from_rss(rss_url, source_name):
         return []
 
 def get_public_account_articles():
-    """获取公众号文章 - 使用多种RSS源"""
+    """获取公众号文章 - 优化版"""
     print("📰 开始检查公众号更新...")
     
     all_articles = []
     
-    # 方法1: 使用其他RSS服务（更稳定）
-    rss_sources = [
+    # 稳定的资讯源（确保有内容）
+    reliable_sources = [
         {
             'name': '知乎热榜',
             'url': 'https://rsshub.app/zhihu/hotlist'
@@ -82,29 +86,47 @@ def get_public_account_articles():
             'url': 'https://rsshub.app/github/trending'
         },
         {
-            'name': '少数派',
-            'url': 'https://sspai.com/feed'
-        },
-        {
             'name': '36氪',
             'url': 'https://rsshub.app/36kr/newsflashes'
+        },
+        {
+            'name': '界面新闻',
+            'url': 'https://rsshub.app/jiemian/news'
+        },
+        {
+            'name': '澎湃新闻',
+            'url': 'https://rsshub.app/thepaper/featured'
+        },
+        {
+            'name': '今日热榜',
+            'url': 'https://rsshub.app/tophub/Om4ejxvxEN'
         }
     ]
     
-    for source in rss_sources:
+    # 尝试一些公众号（可能不稳定）
+    wechat_sources = [
+        {
+            'name': '人民日报',
+            'url': 'https://rsshub.app/wechat/rmrb'
+        },
+        {
+            'name': '央视新闻',
+            'url': 'https://rsshub.app/wechat/cctvnews'
+        },
+        {
+            'name': '新华网',
+            'url': 'https://rsshub.app/wechat/xinhuanet'
+        }
+    ]
+    
+    print("📊 检查稳定的资讯源...")
+    for source in reliable_sources:
         articles = get_articles_from_rss(source['url'], source['name'])
         all_articles.extend(articles)
-        time.sleep(1)  # 避免请求过快
+        time.sleep(1)
     
-    # 方法2: 尝试一些已知可用的公众号（备用）
-    wechat_backup_sources = [
-        {
-            'name': '腾讯新闻',
-            'url': 'https://rsshub.app/tencent/news/rank'
-        }
-    ]
-    
-    for source in wechat_backup_sources:
+    print("📊 尝试检查公众号...")
+    for source in wechat_sources:
         articles = get_articles_from_rss(source['url'], source['name'])
         all_articles.extend(articles)
         time.sleep(1)
@@ -115,29 +137,51 @@ def format_message(articles):
     """格式化消息内容"""
     if not articles:
         return """📭 今日暂无更新
-
+        
 可能是RSS服务暂时不可用。
-建议：
-1. 稍后重试
-2. 更换其他RSS源
-3. 使用其他内容源替代"""
+但机器人功能正常！"""
+    
+    # 按来源分组
+    source_groups = {}
+    for article in articles:
+        source = article['source']
+        if source not in source_groups:
+            source_groups[source] = []
+        source_groups[source].append(article)
     
     message_lines = [
-        "🎯 最新内容更新",
+        "🎯 每日资讯推送",
         "=" * 30
     ]
     
-    for i, article in enumerate(articles[:8], 1):  # 最多显示8条
-        # 清理标题中的换行符
-        clean_title = article['title'].replace('\n', ' ').replace('\r', '')
-        message_lines.append(f"{i}. {article['source']}")
-        message_lines.append(f"   📝 {clean_title[:50]}{'...' if len(clean_title) > 50 else ''}")
-        if article['link']:
-            message_lines.append(f"   🔗 {article['link']}")
-        message_lines.append("")
+    total_count = 0
+    for source, source_articles in source_groups.items():
+        if total_count >= 10:  # 最多显示10条
+            break
+            
+        message_lines.append(f"\n📰 {source}")
+        for i, article in enumerate(source_articles[:2]):  # 每个来源最多2条
+            if total_count >= 10:
+                break
+                
+            clean_title = article['title'].replace('\n', ' ').replace('\r', '')
+            # 缩短过长的标题
+            if len(clean_title) > 40:
+                clean_title = clean_title[:40] + '...'
+                
+            message_lines.append(f"   {i+1}. {clean_title}")
+            if article['link']:
+                # 缩短链接显示
+                short_link = article['link'][:50] + '...' if len(article['link']) > 50 else article['link']
+                message_lines.append(f"      🔗 {short_link}")
+            message_lines.append("")
+            
+            total_count += 1
     
-    message_lines.append(f"📊 共找到 {len(articles)} 条内容")
+    message_lines.append("=" * 30)
+    message_lines.append(f"📊 共推送 {total_count} 条热门内容")
     message_lines.append(f"⏰ 更新时间: {datetime.now().strftime('%m-%d %H:%M')}")
+    message_lines.append("💡 资讯来源于各大平台热榜")
     
     message = "\n".join(message_lines)
     
