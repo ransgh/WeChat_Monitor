@@ -22,8 +22,5 @@ jobs:
       
     - name: 🚀 运行微信监控
       env:
-        CORP_ID: ${{ secrets.CORP_ID }}
-        AGENT_ID: ${{ secrets.AGENT_ID }}
-        APP_SECRET: ${{ secrets.APP_SECRET }}
-        USER_ID: ${{ secrets.USER_ID }}
+        WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
       run: python wechat_monitor.py
