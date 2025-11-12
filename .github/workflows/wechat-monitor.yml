@@ -1,0 +1,29 @@
+name: Daily WeChat Monitor
+
+on:
+  schedule:
+    - cron: '0 11 * * *'  # UTC时间11点 = 北京时间19点
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+    - name: 📥 下载代码
+      uses: actions/checkout@v3
+      
+    - name: 🐍 设置Python环境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: 📦 安装依赖
+      run: pip install requests feedparser
+      
+    - name: 🚀 运行微信监控
+      env:
+        CORP_ID: ${{ secrets.CORP_ID }}
+        AGENT_ID: ${{ secrets.AGENT_ID }}
+        APP_SECRET: ${{ secrets.APP_SECRET }}
+        USER_ID: ${{ secrets.USER_ID }}
+      run: python wechat_monitor.py
